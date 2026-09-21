@@ -1,6 +1,7 @@
 package com.klef.sdp.service;
 
 import java.util.List;
+import java.time.LocalDateTime;
 
 import org.springframework.stereotype.Service;
 
@@ -8,10 +9,13 @@ import com.klef.sdp.dto.AvailabilityRequest;
 import com.klef.sdp.dto.MenuItemRequest;
 import com.klef.sdp.dto.MenuItemResponse;
 import com.klef.sdp.dto.MenuItemSearchResponse;
+import com.klef.sdp.dto.MenuItemValidationResponse;
 import com.klef.sdp.entity.MenuItem;
 import com.klef.sdp.entity.Restaurant;
 import com.klef.sdp.repository.MenuRepository;
 import com.klef.sdp.repository.RestaurantRepository;
+import com.klef.sdp.exception.MenuItemNotFoundException;
+import com.klef.sdp.exception.RestaurantNotFoundException;
 
 @Service
 public class MenuServiceImpl implements MenuService {
@@ -37,7 +41,7 @@ public class MenuServiceImpl implements MenuService {
         Restaurant restaurant = restaurantRepo
                 .findById(restaurantId)
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new RestaurantNotFoundException(
                                 "Restaurant not found with id: "
                                         + restaurantId));
 
@@ -49,6 +53,8 @@ public class MenuServiceImpl implements MenuService {
                 .category(request.getCategory())
                 .price(request.getPrice())
                 .available(request.getAvailable())
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
                 .build();
 
         MenuItem saved = menuRepo.save(menuItem);
@@ -62,7 +68,7 @@ public class MenuServiceImpl implements MenuService {
             Long restaurantId) {
 
         if (!restaurantRepo.existsById(restaurantId)) {
-            throw new RuntimeException(
+            throw new RestaurantNotFoundException(
                     "Restaurant not found with id: "
                             + restaurantId);
         }
@@ -80,7 +86,7 @@ public class MenuServiceImpl implements MenuService {
 
         MenuItem menuItem = menuRepo.findById(menuItemId)
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new MenuItemNotFoundException(
                                 "Menu item not found with id: "
                                         + menuItemId));
 
@@ -95,7 +101,7 @@ public class MenuServiceImpl implements MenuService {
 
         MenuItem menuItem = menuRepo.findById(menuItemId)
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new MenuItemNotFoundException(
                                 "Menu item not found with id: "
                                         + menuItemId));
 
@@ -104,10 +110,32 @@ public class MenuServiceImpl implements MenuService {
         menuItem.setCategory(request.getCategory());
         menuItem.setPrice(request.getPrice());
         menuItem.setAvailable(request.getAvailable());
+        menuItem.setUpdatedAt(LocalDateTime.now());
 
         MenuItem updated = menuRepo.save(menuItem);
 
         return mapToResponse(updated);
+    }
+
+    // INTERNAL API SUPPORT FOR ORDER SERVICE
+    @Override
+    public MenuItemValidationResponse validateMenuItem(
+            Long menuItemId) {
+
+        MenuItem menuItem = menuRepo.findById(menuItemId)
+                .orElseThrow(() ->
+                        new MenuItemNotFoundException(
+                                "Menu item not found with id: "
+                                        + menuItemId));
+
+        return MenuItemValidationResponse.builder()
+                .menuItemId(menuItem.getMenuItemId())
+                .restaurantId(menuItem.getRestaurant()
+                        .getRestaurantId())
+                .name(menuItem.getName())
+                .price(menuItem.getPrice())
+                .available(menuItem.getAvailable())
+                .build();
     }
 
     // DELETE MENU ITEM
@@ -116,7 +144,7 @@ public class MenuServiceImpl implements MenuService {
 
         MenuItem menuItem = menuRepo.findById(menuItemId)
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new MenuItemNotFoundException(
                                 "Menu item not found with id: "
                                         + menuItemId));
 
@@ -170,11 +198,12 @@ public class MenuServiceImpl implements MenuService {
 
         MenuItem menuItem = menuRepo.findById(menuItemId)
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new MenuItemNotFoundException(
                                 "Menu item not found with id: "
                                         + menuItemId));
 
         menuItem.setAvailable(request.getAvailable());
+        menuItem.setUpdatedAt(LocalDateTime.now());
 
         MenuItem updated = menuRepo.save(menuItem);
 

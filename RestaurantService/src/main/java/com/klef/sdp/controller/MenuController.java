@@ -17,6 +17,7 @@ import com.klef.sdp.dto.AvailabilityRequest;
 import com.klef.sdp.dto.MenuItemRequest;
 import com.klef.sdp.dto.MenuItemResponse;
 import com.klef.sdp.dto.MenuItemSearchResponse;
+import com.klef.sdp.dto.MenuItemValidationResponse;
 import com.klef.sdp.service.MenuService;
 
 import jakarta.validation.Valid;
@@ -72,6 +73,15 @@ public class MenuController {
 
         return ResponseEntity.ok(
                 service.getById(menuItemId));
+    }
+
+    // INTERNAL VALIDATION FOR ORDER SERVICE
+    @GetMapping("/menu-item/{menuItemId}/validate")
+    public ResponseEntity<MenuItemValidationResponse> validateMenuItem(
+            @PathVariable Long menuItemId) {
+
+        return ResponseEntity.ok(
+                service.validateMenuItem(menuItemId));
     }
 
     // UPDATE MENU ITEM

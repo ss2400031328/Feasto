@@ -9,6 +9,8 @@ import com.klef.sdp.dto.RestaurantRequest;
 import com.klef.sdp.dto.RestaurantResponse;
 import com.klef.sdp.entity.Restaurant;
 import com.klef.sdp.repository.RestaurantRepository;
+import com.klef.sdp.exception.DuplicateRestaurantException;
+import com.klef.sdp.exception.RestaurantNotFoundException;
 
 @Service
 public class RestaurantServiceImpl implements RestaurantService {
@@ -22,6 +24,12 @@ public class RestaurantServiceImpl implements RestaurantService {
     // CREATE RESTAURANT
     @Override
     public RestaurantResponse create(RestaurantRequest request) {
+
+        if (repo.existsByPhone(request.getPhone())) {
+            throw new DuplicateRestaurantException(
+                    "Restaurant already exists with phone: "
+                            + request.getPhone());
+        }
 
         Restaurant restaurant = Restaurant.builder()
                 .name(request.getName())
@@ -55,7 +63,7 @@ public class RestaurantServiceImpl implements RestaurantService {
 
         Restaurant restaurant = repo.findById(restaurantId)
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new RestaurantNotFoundException(
                                 "Restaurant not found with id: "
                                         + restaurantId));
 
@@ -70,9 +78,16 @@ public class RestaurantServiceImpl implements RestaurantService {
 
         Restaurant restaurant = repo.findById(restaurantId)
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new RestaurantNotFoundException(
                                 "Restaurant not found with id: "
                                         + restaurantId));
+
+        if (!restaurant.getPhone().equals(request.getPhone())
+                && repo.existsByPhone(request.getPhone())) {
+            throw new DuplicateRestaurantException(
+                    "Restaurant already exists with phone: "
+                            + request.getPhone());
+        }
 
         restaurant.setName(request.getName());
         restaurant.setLocation(request.getLocation());
@@ -95,7 +110,7 @@ public class RestaurantServiceImpl implements RestaurantService {
 
         Restaurant restaurant = repo.findById(restaurantId)
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new RestaurantNotFoundException(
                                 "Restaurant not found with id: "
                                         + restaurantId));
 

@@ -12,6 +12,11 @@ import com.klef.sdp.orderservice.dto.OrderItemRequest;
 import com.klef.sdp.orderservice.dto.OrderItemResponse;
 import com.klef.sdp.orderservice.dto.OrderResponse;
 import com.klef.sdp.orderservice.dto.OrderTrackingResponse;
+import com.klef.sdp.orderservice.dto.MenuItemValidationResponse;
+import com.klef.sdp.orderservice.dto.PaymentRequest;
+import com.klef.sdp.orderservice.dto.PaymentResponse;
+import com.klef.sdp.orderservice.client.RestaurantClient;
+import com.klef.sdp.orderservice.client.PaymentClient;
 import com.klef.sdp.orderservice.entity.Order;
 import com.klef.sdp.orderservice.entity.OrderItem;
 import com.klef.sdp.orderservice.entity.OrderStatus;
@@ -32,6 +37,8 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
+    private final RestaurantClient restaurantClient;
+    private final PaymentClient paymentClient;
 
     // create order method
     @Transactional
@@ -52,14 +59,32 @@ public class OrderService {
 
         for (OrderItemRequest itemRequest : request.getItems()) {
 
-            BigDecimal subtotal = itemRequest.getPrice()
+            MenuItemValidationResponse menuItem = restaurantClient
+                    .validateMenuItem(itemRequest.getItemId());
+
+            if (!request.getRestaurantId().equals(
+                    menuItem.getRestaurantId())) {
+                throw new IllegalArgumentException(
+                        "Menu item does not belong to the selected restaurant");
+            }
+
+            if (!Boolean.TRUE.equals(menuItem.getAvailable())) {
+                throw new IllegalArgumentException(
+                        "Menu item is not available: "
+                                + menuItem.getName());
+            }
+
+            BigDecimal currentPrice = BigDecimal.valueOf(
+                    menuItem.getPrice());
+
+            BigDecimal subtotal = currentPrice
                     .multiply(BigDecimal.valueOf(itemRequest.getQuantity()));
 
             OrderItem orderItem = OrderItem.builder()
                     .order(order)
                     .itemId(itemRequest.getItemId())
                     .quantity(itemRequest.getQuantity())
-                    .price(itemRequest.getPrice())
+                    .price(currentPrice)
                     .subtotal(subtotal)
                     .build();
 
@@ -80,6 +105,22 @@ public class OrderService {
                 .build();
 
         orderStatusHistoryRepository.save(history);
+
+        PaymentResponse payment = paymentClient.createPayment(
+                new PaymentRequest(order.getOrderId(), totalAmount,
+                        request.getPaymentMethod()));
+
+        if (!"SUCCESS".equalsIgnoreCase(payment.getStatus())) {
+            order.setStatus(OrderStatus.PAYMENT_FAILED);
+            order.setUpdatedAt(LocalDateTime.now());
+            order = orderRepository.save(order);
+
+            orderStatusHistoryRepository.save(OrderStatusHistory.builder()
+                    .order(order)
+                    .status(OrderStatus.PAYMENT_FAILED)
+                    .changedAt(LocalDateTime.now())
+                    .build());
+        }
 
         return toOrderResponse(order);
     }

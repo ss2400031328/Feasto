@@ -6,6 +6,7 @@ import com.klef.sdp.dto.AvailabilityRequest;
 import com.klef.sdp.dto.MenuItemRequest;
 import com.klef.sdp.dto.MenuItemResponse;
 import com.klef.sdp.dto.MenuItemSearchResponse;
+import com.klef.sdp.dto.MenuItemValidationResponse;
 
 public interface MenuService {
 
@@ -31,4 +32,7 @@ public interface MenuService {
     MenuItemResponse updateAvailability(
             Long menuItemId,
             AvailabilityRequest request);
+
+    MenuItemValidationResponse validateMenuItem(
+            Long menuItemId);
 }
