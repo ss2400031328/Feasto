@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.Column;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -28,9 +29,12 @@ public class Payment {
     private Long paymentId;
 
     private Long orderId;
+    private Long userId;
     private BigDecimal amount;
     private String paymentMethod;
     private String status;
+    @Column(name = "idempotency_key", length = 128, unique = true)
+    private String idempotencyKey;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

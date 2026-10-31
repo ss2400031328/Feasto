@@ -17,6 +17,8 @@ public interface RestaurantService {
             Long restaurantId,
             RestaurantRequest request);
 
+    RestaurantResponse setActive(Long restaurantId, boolean active);
+
     void delete(Long restaurantId);
 
     List<RestaurantResponse> searchByName(String name);

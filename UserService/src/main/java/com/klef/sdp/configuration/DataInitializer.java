@@ -1,7 +1,6 @@
 package com.klef.sdp.configuration;
 
-import java.util.Optional;
-
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -15,43 +14,51 @@ public class DataInitializer implements CommandLineRunner {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final String initialAdminEmail;
+    private final String initialAdminPassword;
+    private final String initialAdminPhone;
 
-    public DataInitializer(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public DataInitializer(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            @Value("${FEASTO_INITIAL_ADMIN_EMAIL:}") String initialAdminEmail,
+            @Value("${FEASTO_INITIAL_ADMIN_PASSWORD:}") String initialAdminPassword,
+            @Value("${FEASTO_INITIAL_ADMIN_PHONE:}") String initialAdminPhone) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.initialAdminEmail = initialAdminEmail;
+        this.initialAdminPassword = initialAdminPassword;
+        this.initialAdminPhone = initialAdminPhone;
     }
 
     @Override
-    public void run(String... args) throws Exception {
-        Optional<User> adminOpt = userRepository.findByEmail("admin@feasto.com");
-
-        if (adminOpt.isEmpty()) {
-            User superAdmin = User.builder()
-                    .name("Super Admin")
-                    .email("admin@feasto.com")
-                    .password(passwordEncoder.encode("admin123"))
-                    .phone("0000000000")
-                    .role(Role.SUPER_ADMIN)
-                    .region("GLOBAL")
-                    .address("Feasto HQ")
-                    .build();
-
-            userRepository.save(superAdmin);
-            System.out.println("==================================================");
-            System.out.println(">>> INITIAL SUPER ADMIN CREATED SUCCESSFUL <<<");
-            System.out.println(">>> Email: admin@feasto.com");
-            System.out.println(">>> Password: admin123");
-            System.out.println("==================================================");
-        } else {
-            User superAdmin = adminOpt.get();
-            superAdmin.setRole(Role.SUPER_ADMIN);
-            superAdmin.setPassword(passwordEncoder.encode("admin123"));
-            userRepository.save(superAdmin);
-            System.out.println("==================================================");
-            System.out.println(">>> SUPER ADMIN UPDATED WITH PASSWORD admin123 <<<");
-            System.out.println(">>> Email: admin@feasto.com");
-            System.out.println(">>> Password: admin123");
-            System.out.println("==================================================");
+    public void run(String... args) {
+        if (initialAdminEmail.isBlank()
+                && initialAdminPassword.isBlank()
+                && initialAdminPhone.isBlank()) {
+            return;
         }
+
+        if (initialAdminEmail.isBlank()
+                || initialAdminPassword.length() < 12
+                || !initialAdminPhone.matches("^[0-9]{10}$")) {
+            throw new IllegalStateException(
+                    "Set FEASTO_INITIAL_ADMIN_EMAIL, FEASTO_INITIAL_ADMIN_PHONE, and a FEASTO_INITIAL_ADMIN_PASSWORD of at least 12 characters");
+        }
+
+        if (userRepository.existsByEmail(initialAdminEmail)) {
+            return;
+        }
+
+        User superAdmin = User.builder()
+                .name("Feasto Administrator")
+                .email(initialAdminEmail)
+                .password(passwordEncoder.encode(initialAdminPassword))
+                .phone(initialAdminPhone)
+                .role(Role.SUPER_ADMIN)
+                .region("GLOBAL")
+                .address("Feasto HQ")
+                .build();
+        userRepository.save(superAdmin);
     }
 }

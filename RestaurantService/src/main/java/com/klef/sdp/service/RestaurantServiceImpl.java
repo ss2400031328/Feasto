@@ -107,14 +107,20 @@ public class RestaurantServiceImpl implements RestaurantService {
     // DELETE RESTAURANT
     @Override
     public void delete(Long restaurantId) {
+        setActive(restaurantId, false);
+    }
 
+    @Override
+    public RestaurantResponse setActive(Long restaurantId, boolean active) {
         Restaurant restaurant = repo.findById(restaurantId)
                 .orElseThrow(() ->
                         new RestaurantNotFoundException(
                                 "Restaurant not found with id: "
                                         + restaurantId));
 
-        repo.delete(restaurant);
+        restaurant.setActive(active);
+        restaurant.setUpdatedAt(LocalDateTime.now());
+        return mapToResponse(repo.save(restaurant));
     }
 
     // SEARCH BY NAME

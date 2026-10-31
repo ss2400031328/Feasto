@@ -86,7 +86,7 @@ public class UserController {
     @Operation(summary = "Update user profile")
     public ResponseEntity<UserResponse> updateUser(
             @PathVariable Long id,
-            @RequestBody UpdateUserRequest request,
+            @Valid @RequestBody UpdateUserRequest request,
             Authentication authentication) {
         return ResponseEntity.ok(service.updateUser(id, request, authentication));
     }

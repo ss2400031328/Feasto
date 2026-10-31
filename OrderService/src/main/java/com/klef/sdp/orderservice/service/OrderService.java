@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import feign.FeignException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,9 +22,11 @@ import com.klef.sdp.orderservice.entity.Order;
 import com.klef.sdp.orderservice.entity.OrderItem;
 import com.klef.sdp.orderservice.entity.OrderStatus;
 import com.klef.sdp.orderservice.entity.OrderStatusHistory;
+import com.klef.sdp.orderservice.exception.DownstreamServiceException;
 import com.klef.sdp.orderservice.exception.InvalidOrderStatusException;
 import com.klef.sdp.orderservice.exception.OrderCancellationException;
 import com.klef.sdp.orderservice.exception.OrderNotFoundException;
+import com.klef.sdp.orderservice.exception.OrderRequestException;
 import com.klef.sdp.orderservice.repository.OrderItemRepository;
 import com.klef.sdp.orderservice.repository.OrderRepository;
 import com.klef.sdp.orderservice.repository.OrderStatusHistoryRepository;
@@ -43,9 +46,7 @@ public class OrderService {
     // create order method
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
-
         BigDecimal totalAmount = BigDecimal.ZERO;
-
         Order order = Order.builder()
                 .userId(request.getUserId())
                 .restaurantId(request.getRestaurantId())
@@ -59,19 +60,26 @@ public class OrderService {
 
         for (OrderItemRequest itemRequest : request.getItems()) {
 
-            MenuItemValidationResponse menuItem = restaurantClient
-                    .validateMenuItem(itemRequest.getItemId());
+            MenuItemValidationResponse menuItem =
+                    validateMenuItem(itemRequest.getItemId());
 
             if (!request.getRestaurantId().equals(
                     menuItem.getRestaurantId())) {
-                throw new IllegalArgumentException(
+                throw new OrderRequestException(
                         "Menu item does not belong to the selected restaurant");
             }
 
             if (!Boolean.TRUE.equals(menuItem.getAvailable())) {
-                throw new IllegalArgumentException(
+                throw new OrderRequestException(
                         "Menu item is not available: "
                                 + menuItem.getName());
+            }
+
+            if (menuItem.getPrice() == null
+                    || !Double.isFinite(menuItem.getPrice())
+                    || menuItem.getPrice() <= 0) {
+                throw new DownstreamServiceException(
+                        "Restaurant service returned an invalid menu item price");
             }
 
             BigDecimal currentPrice = BigDecimal.valueOf(
@@ -106,9 +114,8 @@ public class OrderService {
 
         orderStatusHistoryRepository.save(history);
 
-        PaymentResponse payment = paymentClient.createPayment(
-                new PaymentRequest(order.getOrderId(), totalAmount,
-                        request.getPaymentMethod()));
+        PaymentResponse payment = createPayment(order, totalAmount,
+                request.getPaymentMethod());
 
         if (!"SUCCESS".equalsIgnoreCase(payment.getStatus())) {
             order.setStatus(OrderStatus.PAYMENT_FAILED);
@@ -123,6 +130,48 @@ public class OrderService {
         }
 
         return toOrderResponse(order);
+    }
+
+    private MenuItemValidationResponse validateMenuItem(Long itemId) {
+        try {
+            MenuItemValidationResponse menuItem =
+                    restaurantClient.validateMenuItem(itemId);
+            if (menuItem == null) {
+                throw new DownstreamServiceException(
+                        "Restaurant service returned an empty menu item response");
+            }
+            return menuItem;
+        } catch (FeignException.NotFound exception) {
+            throw new OrderRequestException(
+                    "Menu item not found: " + itemId, exception);
+        } catch (FeignException exception) {
+            throw new DownstreamServiceException(
+                    "Restaurant service could not validate the menu item", exception);
+        }
+    }
+
+    private PaymentResponse createPayment(
+            Order order, BigDecimal amount, String paymentMethod) {
+        PaymentResponse payment;
+        try {
+            payment = paymentClient.createPayment(
+                    "order-" + order.getOrderId() + "-payment-attempt-1",
+                    new PaymentRequest(order.getOrderId(), amount, paymentMethod));
+        } catch (FeignException exception) {
+            throw new DownstreamServiceException(
+                    "Payment service could not process the order payment", exception);
+        }
+
+        if (payment == null
+                || !order.getOrderId().equals(payment.getOrderId())
+                || payment.getAmount() == null
+                || payment.getAmount().compareTo(amount) != 0
+                || payment.getStatus() == null
+                || payment.getStatus().isBlank()) {
+            throw new DownstreamServiceException(
+                    "Payment service returned an invalid payment response");
+        }
+        return payment;
     }
 
     // get order by Id

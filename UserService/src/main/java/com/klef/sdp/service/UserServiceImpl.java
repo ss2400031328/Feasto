@@ -124,9 +124,8 @@ public class UserServiceImpl implements UserService
     {
         User user = repository.findByEmail(request.getEmail())
                 .orElseThrow(
-                    () -> new ResourceNotFoundException(
-                        "User not found with email: "
-                        + request.getEmail()
+                    () -> new UnauthorizedException(
+                        "Invalid email or password"
                     )
                 );
 
@@ -144,7 +143,7 @@ public class UserServiceImpl implements UserService
                 loadUserByUsername(user.getEmail());
 
         String token =
-                jwtUtil.generateToken(userDetails);
+                jwtUtil.generateToken(userDetails, user.getId());
 
         return LoginResponse.builder()
                 .token(token)

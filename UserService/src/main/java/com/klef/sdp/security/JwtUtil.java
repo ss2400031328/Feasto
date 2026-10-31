@@ -1,6 +1,5 @@
 package com.klef.sdp.security;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -17,6 +16,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.io.Decoders;
 
 @Component
 public class JwtUtil
@@ -60,6 +60,14 @@ public class JwtUtil
         UserDetails userDetails
     )
     {
+        return generateToken(userDetails, null);
+    }
+
+    public String generateToken(
+        UserDetails userDetails,
+        Long userId
+    )
+    {
         Map<String, Object> claims =
                 new HashMap<>();
 
@@ -73,6 +81,10 @@ public class JwtUtil
                     .getAuthority()
             );
         }
+        if (userId != null)
+        {
+            claims.put("userId", userId);
+        }
 
         return Jwts.builder()
                 .claims(claims)
@@ -85,7 +97,7 @@ public class JwtUtil
                             + expiration
                     )
                 )
-                .signWith(getSignInKey())
+                .signWith(getSignInKey(), Jwts.SIG.HS256)
                 .compact();
     }
 
@@ -131,9 +143,7 @@ public class JwtUtil
     private SecretKey getSignInKey()
     {
         return Keys.hmacShaKeyFor(
-            secretKey.getBytes(
-                StandardCharsets.UTF_8
-            )
+            Decoders.BASE64.decode(secretKey)
         );
     }
 }

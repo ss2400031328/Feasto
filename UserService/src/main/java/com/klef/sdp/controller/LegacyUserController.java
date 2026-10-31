@@ -74,7 +74,7 @@ public class LegacyUserController {
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'REGIONAL_MANAGER', 'CUSTOMER')")
     public ResponseEntity<UserResponse> updateUser(
             @PathVariable Long id,
-            @RequestBody UpdateUserRequest request,
+            @Valid @RequestBody UpdateUserRequest request,
             Authentication authentication) {
         return ResponseEntity.ok(service.updateUser(id, request, authentication));
     }

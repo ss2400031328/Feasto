@@ -1,9 +1,13 @@
 package com.klef.sdp.orderservice.controller;
 
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
 import com.klef.sdp.orderservice.dto.CreateOrderRequest;
@@ -21,11 +25,18 @@ import lombok.RequiredArgsConstructor;
 public class OrderController {
 
     private final OrderService orderService;
+    @GetMapping("/")
+    public String home(){
+        return "Order Service is up and running!";
+    }
 
     // Create Order
     @PostMapping
     public ResponseEntity<OrderResponse> createOrder(
-            @Valid @RequestBody CreateOrderRequest request) {
+            @Valid @RequestBody CreateOrderRequest request,
+            Authentication authentication) {
+
+        request.setUserId(currentUserId(authentication));
 
         OrderResponse order = orderService.createOrder(request);
 
@@ -37,15 +48,23 @@ public class OrderController {
     // Get Order by ID
     @GetMapping("/{orderId}")
     public ResponseEntity<OrderResponse> getOrderById(
-            @PathVariable Long orderId) {
+            @PathVariable Long orderId,
+            Authentication authentication) {
 
-        return ResponseEntity.ok(orderService.getOrderById(orderId));
+        OrderResponse order = orderService.getOrderById(orderId);
+        requireOwnerOrAdmin(order, authentication);
+        return ResponseEntity.ok(order);
     }
 
     // Get orders of a user
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<OrderResponse>> getOrdersByUserId(
-            @PathVariable Long userId) {
+            @PathVariable Long userId,
+            Authentication authentication) {
+
+        if (!isSuperAdmin(authentication) && !userId.equals(currentUserId(authentication))) {
+            throw new AccessDeniedException("You can only view your own orders");
+        }
 
         return ResponseEntity.ok(
                 orderService.getOrdersByUserId(userId)
@@ -86,8 +105,10 @@ public class OrderController {
     // Cancel order
     @PatchMapping("/{orderId}/cancel")
     public ResponseEntity<OrderResponse> cancelOrder(
-            @PathVariable Long orderId) {
+            @PathVariable Long orderId,
+            Authentication authentication) {
 
+        requireOwnerOrAdmin(orderService.getOrderById(orderId), authentication);
         return ResponseEntity.ok(
                 orderService.cancelOrder(orderId)
         );
@@ -96,8 +117,32 @@ public class OrderController {
     // Get order tracking
     @GetMapping("/{orderId}/tracking")
     public ResponseEntity<List<OrderTrackingResponse>> getOrderTracking(
-            @PathVariable Long orderId) {
+            @PathVariable Long orderId,
+            Authentication authentication) {
 
+        requireOwnerOrAdmin(orderService.getOrderById(orderId), authentication);
         return ResponseEntity.ok(orderService.getOrderTracking(orderId));
+    }
+
+    private void requireOwnerOrAdmin(OrderResponse order, Authentication authentication) {
+        if (!isSuperAdmin(authentication)
+                && !Objects.equals(order.getUserId(), currentUserId(authentication))) {
+            throw new AccessDeniedException("You can only access your own orders");
+        }
+    }
+
+    private Long currentUserId(Authentication authentication) {
+        if (authentication instanceof JwtAuthenticationToken jwtAuthentication) {
+            Object claim = jwtAuthentication.getToken().getClaim("userId");
+            if (claim instanceof Number userId) {
+                return userId.longValue();
+            }
+        }
+        throw new AccessDeniedException("Authenticated token has no user identity");
+    }
+
+    private boolean isSuperAdmin(Authentication authentication) {
+        return authentication.getAuthorities().stream()
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_SUPER_ADMIN"));
     }
 }

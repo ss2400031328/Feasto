@@ -2,8 +2,10 @@ package com.klef.sdp.orderservice.exception;
 
 import java.time.LocalDateTime;
 
+import feign.FeignException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -56,7 +58,31 @@ public class GlobalExceptionHandler {
                 .body(error);
     }
 
- // Handle validation errors
+    @ExceptionHandler(OrderRequestException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidOrderRequest(
+            OrderRequestException exception) {
+        return error(HttpStatus.BAD_REQUEST, exception.getMessage());
+    }
+
+    @ExceptionHandler(DownstreamServiceException.class)
+    public ResponseEntity<ErrorResponse> handleDownstreamFailure(
+            DownstreamServiceException exception) {
+        return error(HttpStatus.BAD_GATEWAY, exception.getMessage());
+    }
+
+    @ExceptionHandler(FeignException.class)
+    public ResponseEntity<ErrorResponse> handleUnexpectedFeignFailure(
+            FeignException exception) {
+        return error(HttpStatus.BAD_GATEWAY,
+                "A downstream service failed while processing the order");
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableRequest(
+            HttpMessageNotReadableException exception) {
+        return error(HttpStatus.BAD_REQUEST, "Request body is invalid");
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationErrors(
             MethodArgumentNotValidException exception) {
@@ -69,14 +95,14 @@ public class GlobalExceptionHandler {
                 .findFirst()
                 .orElse("Validation failed");
 
-        ErrorResponse error = new ErrorResponse(
-                HttpStatus.BAD_REQUEST.value(),
-                message,
-                LocalDateTime.now()
-        );
+        return error(HttpStatus.BAD_REQUEST, message);
+    }
 
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(error);
+    private ResponseEntity<ErrorResponse> error(HttpStatus status, String message) {
+        ErrorResponse error = new ErrorResponse(
+                status.value(),
+                message,
+                LocalDateTime.now());
+        return ResponseEntity.status(status).body(error);
     }
 }

@@ -7,9 +7,9 @@ import com.klef.sdp.payment.dto.PaymentResponse;
 
 public interface PaymentService {
 
-    PaymentResponse create(PaymentRequest request);
+    PaymentResponse create(PaymentRequest request, Long userId, String idempotencyKey);
 
-    PaymentResponse getById(Long paymentId);
+    PaymentResponse getById(Long paymentId, Long userId, boolean administrator);
 
-    List<PaymentResponse> getByOrderId(Long orderId);
+    List<PaymentResponse> getByOrderId(Long orderId, Long userId, boolean administrator);
 }
